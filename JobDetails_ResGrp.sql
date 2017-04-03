@@ -1,4 +1,4 @@
-
+--List of Jobs with part numbers, and a MoM production string
 SELECT
      [PartNum], [JobNum], [ProdQty], 
      STUFF(
