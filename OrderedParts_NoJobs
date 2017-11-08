@@ -1,0 +1,49 @@
+select 
+	[PartMtl].[PartNum] as [PartMtl_PartNum],
+	[PartMtl].[MtlPartNum] as [PartMtl_MtlPartNum],
+	(convert( varchar, convert(int,round(PartMtl.QtyPer * OpenOrder.Calculated_QtyNeeded, 0))) + ' ' + PartMtl.UOMCode) as [Calculated_SuggestedQty],
+	[OpenOrder].[Calculated_ShipIn] as [Calculated_ShipIn],
+	[OpenOrder].[Calculated_NextDue] as [Calculated_NextDue],
+	[OpenOrder].[Calculated_NextSalesOrder] as [Calculated_NextSalesOrder],
+	[OpenOrder].[Calculated_QtyNeeded] as [Calculated_QtyNeeded]
+from Erp.PartMtl as PartMtl
+inner join  (select 
+	[OrderDtl].[PartNum] as [OrderDtl_PartNum],
+	[OrderDtl].[RevisionNum] as [OrderDtl_RevisionNum],
+	(convert(varchar, 
+ datediff(week, convert(date, GETDATE()), 
+     min(OrderRel.ReqDate)
+     )) + ' weeks') as [Calculated_ShipIn],
+	(min(OrderRel.ReqDate)) as [Calculated_NextDue],
+	(min(OrderHed.OrderNum)) as [Calculated_NextSalesOrder],
+	(sum( OrderRel.OurReqQty )) as [Calculated_QtyNeeded]
+from Erp.OrderHed as OrderHed
+inner join Erp.OrderDtl as OrderDtl on 
+	OrderHed.Company = OrderDtl.Company
+And
+	OrderHed.OrderNum = OrderDtl.OrderNum
+ and ( OrderDtl.OpenLine = True  )
+
+inner join Erp.OrderRel as OrderRel on 
+	OrderDtl.Company = OrderRel.Company
+And
+	OrderDtl.OrderNum = OrderRel.OrderNum
+And
+	OrderDtl.OrderLine = OrderRel.OrderLine
+ and ( OrderRel.OpenRelease = True  )
+
+group by [OrderDtl].[PartNum],
+	[OrderDtl].[RevisionNum])  as OpenOrder on 
+	PartMtl.PartNum = OpenOrder.OrderDtl_PartNum
+And
+	PartMtl.RevisionNum = OpenOrder.OrderDtl_RevisionNum
+
+ where (not PartMtl.PartNum in (select JobHead_PartNum from ((select distinct
+	[JobHead].[PartNum] as [JobHead_PartNum],
+	[JobHead].[RevisionNum] as [JobHead_RevisionNum]
+from Erp.JobHead as JobHead
+ where (JobHead.JobClosed = False))) as CurrJobs)   and PartMtl.PartNum in (select PartRev1_PartNum from ((select 
+	[PartRev1].[PartNum] as [PartRev1_PartNum],
+	[PartRev1].[RevisionNum] as [PartRev1_RevisionNum]
+from Erp.PartRev as PartRev1
+ where (PartRev1.Approved = False))) as UnapprovedParts))
